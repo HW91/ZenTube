@@ -1,0 +1,90 @@
+<!DOCTYPE html><html>
+<head>
+  <title>YouTube Video Filter</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input, select, textarea, button { margin: 5px 0; width: 100%; }
+    .video { margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>YouTube Video Filter</h1>
+  <label>Search Term:</label>
+  <input type="text" id="query" placeholder="e.g. tech reviews"><label>Upload Date:</label> <select id="uploadDate"> <option value="any">Any</option> <option value="today">Today</option> <option value="thisWeek">This Week</option> <option value="thisMonth">This Month</option> </select>
+
+<label>Duration:</label> <select id="duration"> <option value="any">Any</option> <option value="short">Short (< 4 mins)</option> <option value="medium">Medium (4–20 mins)</option> <option value="long">Long (> 20 mins)</option> </select>
+
+<label>Blocked Terms (comma-separated):</label> <input type="text" id="blocked" placeholder="e.g. prank, politics">
+
+<label>Hide Shorts:</label> <input type="checkbox" id="hideShorts">
+
+<button onclick="searchVideos()">Search</button>
+
+  <div id="results"></div>  <script>
+    const API_KEY = 'YOUR_API_KEY_HERE';
+    const MAX_PAGES = 3;
+
+    async function searchVideos() {
+      const query = document.getElementById('query').value;
+      const uploadDate = document.getElementById('uploadDate').value;
+      const duration = document.getElementById('duration').value;
+      const blockedTerms = document.getElementById('blocked').value.toLowerCase().split(',').map(t => t.trim());
+      const hideShorts = document.getElementById('hideShorts').checked;
+
+      let pageToken = '';
+      let results = [];
+
+      for (let i = 0; i < MAX_PAGES; i++) {
+        const url = new URL('https://www.googleapis.com/youtube/v3/search');
+        url.search = new URLSearchParams({
+          key: API_KEY,
+          q: query,
+          part: 'snippet',
+          maxResults: '25',
+          type: 'video',
+          videoDuration: duration !== 'any' ? duration : undefined,
+          publishedAfter: uploadDate === 'today' ? new Date(Date.now() - 86400000).toISOString() :
+                         uploadDate === 'thisWeek' ? new Date(Date.now() - 7 * 86400000).toISOString() :
+                         uploadDate === 'thisMonth' ? new Date(Date.now() - 30 * 86400000).toISOString() : undefined,
+          pageToken: pageToken
+        });
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data.items) break;
+
+        const filtered = data.items.filter(item => {
+          const meta = `${item.snippet.title} ${item.snippet.description}`.toLowerCase();
+          const blocked = blockedTerms.some(term => meta.includes(term));
+          const isShort = item.id.videoId && item.snippet.title.toLowerCase().includes('#shorts');
+          return !blocked && (!hideShorts || !isShort);
+        });
+
+        results = results.concat(filtered);
+        if (!data.nextPageToken) break;
+        pageToken = data.nextPageToken;
+      }
+
+      displayResults(results);
+    }
+
+    function displayResults(videos) {
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+      if (videos.length === 0) {
+        container.innerHTML = '<p>No results found after filtering.</p>';
+        return;
+      }
+
+      videos.forEach(video => {
+        const title = video.snippet.title;
+        const videoId = video.id.videoId;
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        const div = document.createElement('div');
+        div.className = 'video';
+        div.innerHTML = `<a href="${url}" target="_blank">${title}</a>`;
+        container.appendChild(div);
+      });
+    }
+  </script></body>
+</html>
