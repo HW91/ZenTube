@@ -8,7 +8,7 @@
   <h1>YouTube Video Filter</h1>
 
   <label>Search Term: <input type="text" id="searchTerm"></label><br>
-  
+
   <label>
     <input type="checkbox" id="toggleBlockTerms" checked onchange="toggleBlockTermsBox()"> Show Blocked Terms Box
   </label><br>
@@ -20,7 +20,18 @@
   <label>Max Results (1–50): <input type="number" id="maxResults" value="10" min="1" max="50"></label><br>
   <label>Show Shorts: <input type="checkbox" id="showShorts" checked></label><br>
   <label>Show Blocked Results: <input type="checkbox" id="showBlocked" checked></label><br>
-  
+
+  <label>Upload Date:
+    <select id="uploadDate">
+      <option value="">Any time</option>
+      <option value="1">Last day</option>
+      <option value="7">Last week</option>
+      <option value="30">Last month</option>
+      <option value="90">Last 3 months</option>
+      <option value="365">Last year</option>
+    </select>
+  </label><br>
+
   <button onclick="fetchVideos()">Search</button>
 
   <div id="results"></div>
@@ -35,6 +46,13 @@
       box.style.display = checkbox.checked ? 'block' : 'none';
     }
 
+    function getPublishedAfter(daysAgo) {
+      if (!daysAgo) return '';
+      const date = new Date();
+      date.setDate(date.getDate() - parseInt(daysAgo));
+      return date.toISOString();
+    }
+
     async function fetchVideos() {
       const searchTerm = document.getElementById('searchTerm').value.trim();
       const blockInput = document.getElementById('blockTerms').value.trim();
@@ -42,13 +60,18 @@
       const maxResults = parseInt(document.getElementById('maxResults').value) || 10;
       const showShorts = document.getElementById('showShorts').checked;
       const showBlocked = document.getElementById('showBlocked').checked;
+      const uploadDays = document.getElementById('uploadDate').value;
+      const publishedAfter = getPublishedAfter(uploadDays);
 
       if (!searchTerm) {
         alert('Please enter a search term.');
         return;
       }
 
-      const url = `${API_URL}?key=${API_KEY}&part=snippet&type=video&q=${encodeURIComponent(searchTerm)}&maxResults=${maxResults}`;
+      let url = `${API_URL}?key=${API_KEY}&part=snippet&type=video&q=${encodeURIComponent(searchTerm)}&maxResults=${maxResults}`;
+      if (publishedAfter) {
+        url += `&publishedAfter=${encodeURIComponent(publishedAfter)}`;
+      }
 
       try {
         const response = await fetch(url);
@@ -81,7 +104,6 @@
       }
     }
 
-    // Hide or show blockTermsBox on initial load
     window.onload = toggleBlockTermsBox;
   </script>
 </body>
