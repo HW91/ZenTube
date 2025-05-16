@@ -1,42 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>YouTube Video Filter</title>
 </head>
 <body>
-  <h1>YouTube Video Filter</h1>
-
-  <label>Search Term: <input type="text" id="searchTerm"></label><br>
+  <h1>YouTube Video Filter</h1><label>Search Term: <input type="text" id="searchTerm"></label><br>
 
   <label>
     <input type="checkbox" id="toggleBlockTerms" checked onchange="toggleBlockTermsBox()"> Show Blocked Terms Box
-  </label><br>
-
-  <div id="blockTermsBox">
+  </label><br>  <div id="blockTermsBox">
     <label>Blocked Terms (comma-separated): <input type="text" id="blockTerms"></label><br>
-  </div>
+  </div><label>Max Results (1–50): <input type="number" id="maxResults" value="10" min="1" max="50"></label><br> <label>Show Shorts: <input type="checkbox" id="showShorts" checked></label><br> <label>Show Blocked Results: <input type="checkbox" id="showBlocked" checked></label><br>
 
-  <label>Max Results (1–50): <input type="number" id="maxResults" value="10" min="1" max="50"></label><br>
-  <label>Show Shorts: <input type="checkbox" id="showShorts" checked></label><br>
-  <label>Show Blocked Results: <input type="checkbox" id="showBlocked" checked></label><br>
+<label>Upload Date: <select id="uploadDate"> <option value="">Any time</option> <option value="1">Last day</option> <option value="7">Last week</option> <option value="30">Last month</option> <option value="90">Last 3 months</option> <option value="365">Last year</option> </select> </label><br>
 
-  <label>Upload Date:
-    <select id="uploadDate">
-      <option value="">Any time</option>
-      <option value="1">Last day</option>
-      <option value="7">Last week</option>
-      <option value="30">Last month</option>
-      <option value="90">Last 3 months</option>
-      <option value="365">Last year</option>
-    </select>
-  </label><br>
+<label>Sort By: <select id="sortBy"> <option value="relevance">Relevance</option> <option value="date">Upload Date</option> <option value="viewCount">View Count</option> </select> </label><br>
 
-  <button onclick="fetchVideos()">Search</button>
+<label>Order: <select id="sortOrder"> <option value="desc">Descending</option> <option value="asc">Ascending</option> </select> </label><br>
 
-  <div id="results"></div>
+<button onclick="fetchVideos()">Search</button>
 
-  <script>
+  <div id="results"></div>  <script>
     const API_KEY = 'AIzaSyCOpM3LTOwzxzi2rHyDeWx5GM-D3wV7CS4';
     const API_URL = 'https://www.googleapis.com/youtube/v3/search';
 
@@ -53,7 +37,35 @@
       return date.toISOString();
     }
 
+    function saveSettings() {
+      const fields = ['searchTerm', 'blockTerms', 'maxResults', 'showShorts', 'showBlocked', 'uploadDate', 'sortBy', 'sortOrder', 'toggleBlockTerms'];
+      const settings = {};
+      fields.forEach(id => {
+        const el = document.getElementById(id);
+        settings[id] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      localStorage.setItem('ytFilterSettings', JSON.stringify(settings));
+    }
+
+    function loadSettings() {
+      const saved = localStorage.getItem('ytFilterSettings');
+      if (!saved) return;
+      const settings = JSON.parse(saved);
+      for (const id in settings) {
+        const el = document.getElementById(id);
+        if (el) {
+          if (el.type === 'checkbox') {
+            el.checked = settings[id];
+          } else {
+            el.value = settings[id];
+          }
+        }
+      }
+      toggleBlockTermsBox();
+    }
+
     async function fetchVideos() {
+      saveSettings();
       const searchTerm = document.getElementById('searchTerm').value.trim();
       const blockInput = document.getElementById('blockTerms').value.trim();
       const blockTerms = blockInput ? blockInput.toLowerCase().split(',').map(t => t.trim()) : [];
@@ -62,23 +74,23 @@
       const showBlocked = document.getElementById('showBlocked').checked;
       const uploadDays = document.getElementById('uploadDate').value;
       const publishedAfter = getPublishedAfter(uploadDays);
+      const sortBy = document.getElementById('sortBy').value;
+      const sortOrder = document.getElementById('sortOrder').value;
 
       if (!searchTerm) {
         alert('Please enter a search term.');
         return;
       }
 
-      let url = `${API_URL}?key=${API_KEY}&part=snippet&type=video&q=${encodeURIComponent(searchTerm)}&maxResults=${maxResults}`;
-      if (publishedAfter) {
-        url += `&publishedAfter=${encodeURIComponent(publishedAfter)}`;
-      }
+      let url = `${API_URL}?key=${API_KEY}&part=snippet&type=video&q=${encodeURIComponent(searchTerm)}&maxResults=${maxResults}&order=${sortBy}`;
+      if (publishedAfter) url += `&publishedAfter=${encodeURIComponent(publishedAfter)}`;
 
       try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`API error: ${response.status}`);
         const data = await response.json();
 
-        const filtered = data.items.filter(item => {
+        let videos = data.items.filter(item => {
           const title = item.snippet.title.toLowerCase();
           const isBlocked = blockTerms.some(term => title.includes(term));
           const isShort = item.snippet.description?.includes('#shorts');
@@ -86,10 +98,12 @@
           return !shouldHide;
         });
 
+        if (sortOrder === 'asc') videos.reverse();
+
         const resultsDiv = document.getElementById('results');
         resultsDiv.innerHTML = '';
 
-        filtered.forEach(item => {
+        videos.forEach(item => {
           const videoId = item.id.videoId;
           const title = item.snippet.title;
           const url = `https://www.youtube.com/watch?v=${videoId}`;
@@ -104,7 +118,6 @@
       }
     }
 
-    window.onload = toggleBlockTermsBox;
-  </script>
-</body>
+    window.onload = loadSettings;
+  </script></body>
 </html>
