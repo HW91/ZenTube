@@ -1,129 +1,70 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>YouTube Video Filter</title>
-  <style>
-    body { font-family: sans-serif; margin: 20px; max-width: 600px; }
-    input, select, button { margin: 5px 0; width: 100%; box-sizing: border-box; }
-    label { display: block; margin-top: 10px; }
-    #loading { font-style: italic; display: none; }
-    #error { color: red; }
-    .video { margin-bottom: 15px; }
-  </style>
 </head>
 <body>
-  <h1>YouTube Video Filter</h1><label for="query">Search Term</label> <input id="query" type="text" placeholder="e.g. tech reviews" />
+  <h1>YouTube Video Filter</h1>
 
-<label for="uploadDate">Upload Date</label> <select id="uploadDate"> <option value="any">Any</option> <option value="today">Today</option> <option value="thisWeek">This Week</option> <option value="thisMonth">This Month</option> </select>
+  <label>Search Term: <input type="text" id="searchTerm"></label><br>
+  <label>Blocked Terms (comma-separated): <input type="text" id="blockTerms"></label><br>
+  <label>Max Results (1–50): <input type="number" id="maxResults" value="10" min="1" max="50"></label><br>
+  <label>Show Shorts: <input type="checkbox" id="showShorts" checked></label><br>
+  <label>Show Blocked Results: <input type="checkbox" id="showBlocked" checked></label><br>
+  <button onclick="fetchVideos()">Search</button>
 
-<label for="duration">Duration</label> <select id="duration"> <option value="any">Any</option> <option value="short">Short (<4 mins)</option> <option value="medium">Medium (4–20 mins)</option> <option value="long">Long (>20 mins)</option> </select>
+  <div id="results"></div>
 
-<label for="blockedTerms">Blocked Terms (comma-separated)</label> <input id="blockedTerms" type="text" placeholder="e.g. prank, politics" />
+  <script>
+    const API_KEY = 'AIzaSyCOpM3LTOwzxzi2rHyDeWx5GM-D3wV7CS4';
+    const API_URL = 'https://www.googleapis.com/youtube/v3/search';
 
-<label><input id="hideShorts" type="checkbox" /> Hide Shorts</label>
+    async function fetchVideos() {
+      const searchTerm = document.getElementById('searchTerm').value.trim();
+      const blockInput = document.getElementById('blockTerms').value.trim();
+      const blockTerms = blockInput ? blockInput.toLowerCase().split(',').map(t => t.trim()) : [];
+      const maxResults = parseInt(document.getElementById('maxResults').value) || 10;
+      const showShorts = document.getElementById('showShorts').checked;
+      const showBlocked = document.getElementById('showBlocked').checked;
 
-<button id="searchBtn">Search</button>
-
-  <p id="loading">Loading results...</p>
-  <p id="error"></p>  <div id="results"></div>  <script>
-    const API_KEY = 'AIzaSyCOpM3LTOwzxzi2rHyDeWx5GM-D3wV7CS4'; // Replace with your actual key
-
-    function loadSettings() {
-      ['query','uploadDate','duration','blockedTerms'].forEach(id => {
-        const val = localStorage.getItem(id);
-        if (val) document.getElementById(id).value = val;
-      });
-      document.getElementById('hideShorts').checked = localStorage.getItem('hideShorts') === 'true';
-    }
-
-    function saveSettings() {
-      ['query','uploadDate','duration','blockedTerms'].forEach(id => {
-        localStorage.setItem(id, document.getElementById(id).value);
-      });
-      localStorage.setItem('hideShorts', document.getElementById('hideShorts').checked);
-    }
-
-    async function fetchVideos(query, publishedAfter, duration) {
-      const params = new URLSearchParams({
-        part: 'snippet',
-        type: 'video',
-        q: query,
-        maxResults: '25',
-        key: API_KEY
-      });
-      if (publishedAfter) params.append('publishedAfter', publishedAfter);
-      if (duration && duration !== 'any') params.append('videoDuration', duration);
-
-      const url = `https://www.googleapis.com/youtube/v3/search?${params.toString()}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`API Error: ${res.status}`);
-      const data = await res.json();
-      return data.items || [];
-    }
-
-    function getPublishedAfter(option) {
-      const now = Date.now();
-      if (option === 'today') return new Date(now - 86400000).toISOString();
-      if (option === 'thisWeek') return new Date(now - 7*86400000).toISOString();
-      if (option === 'thisMonth') return new Date(now - 30*86400000).toISOString();
-      return null;
-    }
-
-    function displayResults(videos) {
-      const container = document.getElementById('results');
-      container.innerHTML = '';
-      if (!videos.length) {
-        container.textContent = 'No matching videos found.';
+      if (!searchTerm) {
+        alert('Please enter a search term.');
         return;
       }
-      videos.forEach(item => {
-        const title = item.snippet.title;
-        const videoId = item.id.videoId;
-        const url = `https://www.youtube.com/watch?v=${videoId}`;
-        const div = document.createElement('div');
-        div.className = 'video';
-        div.innerHTML = `<a href="${url}" target="_blank"><strong>${title}</strong></a>`;
-        container.appendChild(div);
-      });
-    }
 
-    async function searchVideos() {
-      saveSettings();
-      document.getElementById('error').textContent = '';
-      document.getElementById('results').innerHTML = '';
-      document.getElementById('loading').style.display = 'block';
-      document.getElementById('searchBtn').disabled = true;
-
-      const query = document.getElementById('query').value.trim();
-      if (!query) {
-        document.getElementById('error').textContent = 'Please enter a search term.';
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('searchBtn').disabled = false;
-        return;
-      }
-      const publishedAfter = getPublishedAfter(document.getElementById('uploadDate').value);
-      const duration = document.getElementById('duration').value;
-      const blocked = document.getElementById('blockedTerms').value
-        .split(',').map(t => t.trim()).filter(t => t).map(t => new RegExp(t, 'i'));
-      const hideShorts = document.getElementById('hideShorts').checked;
+      const url = `${API_URL}?key=${API_KEY}&part=snippet&type=video&q=${encodeURIComponent(searchTerm)}&maxResults=${maxResults}`;
 
       try {
-        const items = await fetchVideos(query, publishedAfter, duration);
-        const filtered = items.filter(item => {
-          const meta = `${item.snippet.title} ${item.snippet.description}`;
-          if (hideShorts && /#shorts/i.test(meta)) return false;
-          return !blocked.some(rx => rx.test(meta));
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        const data = await response.json();
+
+        const filtered = data.items.filter(item => {
+          const title = item.snippet.title.toLowerCase();
+          const isBlocked = blockTerms.some(term => title.includes(term));
+          const isShort = item.id.videoId && item.snippet && item.snippet.description?.includes('#shorts');
+          const shouldHide = (isBlocked && !showBlocked) || (!showShorts && isShort);
+          return !shouldHide;
         });
-        displayResults(filtered);
+
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = '';
+
+        filtered.forEach(item => {
+          const videoId = item.id.videoId;
+          const title = item.snippet.title;
+          const url = `https://www.youtube.com/watch?v=${videoId}`;
+          const div = document.createElement('div');
+          div.innerHTML = `<p><a href="${url}" target="_blank">${title}</a></p>`;
+          resultsDiv.appendChild(div);
+        });
+
       } catch (err) {
-        document.getElementById('error').textContent = err.message;
-      } finally {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('searchBtn').disabled = false;
+        console.error(err);
+        alert('Failed to fetch videos.');
       }
     }
-
-    document.getElementById('searchBtn').addEventListener('click', searchVideos);
-    window.addEventListener('load', loadSettings);
-  </script></body>
+  </script>
+</body>
 </html>
