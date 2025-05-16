@@ -1,169 +1,101 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>YouTube Video Filter</title>
   <style>
-    body { font-family: Arial; max-width: 600px; margin: auto; padding: 20px; }
-    input, select, textarea, button { margin: 5px 0; width: 100%; box-sizing: border-box; }
-    .video { margin: 10px 0; }
-    #loading { display: none; font-style: italic; }
-    #error { color: red; }
+    body { font-family: sans-serif; margin: 20px; }
+    input, select, button { margin: 5px; }
+    #results { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>YouTube Video Filter</h1>
-
-  <label>Search Term:</label>
-  <input type="text" id="query" placeholder="e.g. tech reviews">
-
-  <label>Upload Date:</label>
-  <select id="uploadDate">
-    <option value="any">Any</option>
-    <option value="today">Today</option>
-    <option value="thisWeek">This Week</option>
-    <option value="thisMonth">This Month</option>
-  </select>
-
-  <label>Duration:</label>
+  <h1>YouTube Video Filter</h1>  <input id="query" placeholder="Search term" />
+  <input id="blockedTerms" placeholder="Blocked terms (comma-separated)" />
   <select id="duration">
-    <option value="any">Any</option>
-    <option value="short">Short (< 4 mins)</option>
-    <option value="medium">Medium (4–20 mins)</option>
-    <option value="long">Long (> 20 mins)</option>
+    <option value="any">Any duration</option>
+    <option value="short">Short (&lt; 4 min)</option>
+    <option value="medium">Medium (4–20 min)</option>
+    <option value="long">Long (&gt; 20 min)</option>
   </select>
+  <input id="publishedAfter" type="date" />
+  <label>
+    <input type="checkbox" id="hideShorts" /> Hide Shorts
+  </label>
+  <button onclick="searchVideos()">Search</button>  <div id="results"></div>  <script>
+    const API_KEY = 'YOUR_API_KEY'; // Replace with your actual API key
 
-  <label>Blocked Terms (comma-separated):</label>
-  <input type="text" id="blocked" placeholder="e.g. prank, politics">
+    function getDateISOString(inputId) {
+      const val = document.getElementById(inputId).value;
+      return val ? new Date(val).toISOString() : null;
+    }
 
-  <label><input type="checkbox" id="hideShorts"> Hide Shorts</label>
+    function saveSettings() {
+      const keys = ['query', 'blockedTerms', 'duration', 'publishedAfter', 'hideShorts'];
+      keys.forEach(key => {
+        const el = document.getElementById(key);
+        localStorage.setItem(key, el.type === 'checkbox' ? el.checked : el.value);
+      });
+    }
 
-  <button id="searchBtn">Search</button>
-  <p id="loading">Loading results...</p>
-  <p id="error"></p>
-
-  <div id="results"></div>
-
-  <script>
-    const API_KEY = 'AIzaSyCOpM3LTOwzxzi2rHyDeWx5GM-D3wV7CS4';
-    const MAX_PAGES = 3;
-
-    // Load saved settings
     function loadSettings() {
-      document.getElementById('query').value = localStorage.getItem('query') || '';
-      document.getElementById('uploadDate').value = localStorage.getItem('uploadDate') || 'any';
-      document.getElementById('duration').value = localStorage.getItem('duration') || 'any';
-      document.getElementById('blocked').value = localStorage.getItem('blocked') || '';
+      ['query', 'blockedTerms', 'duration', 'publishedAfter'].forEach(id => {
+        if (localStorage.getItem(id)) document.getElementById(id).value = localStorage.getItem(id);
+      });
       document.getElementById('hideShorts').checked = localStorage.getItem('hideShorts') === 'true';
     }
 
-    // Save current settings
-    function saveSettings() {
-      localStorage.setItem('query', document.getElementById('query').value);
-      localStorage.setItem('uploadDate', document.getElementById('uploadDate').value);
-      localStorage.setItem('duration', document.getElementById('duration').value);
-      localStorage.setItem('blocked', document.getElementById('blocked').value);
-      localStorage.setItem('hideShorts', document.getElementById('hideShorts').checked);
-    }
-
     async function searchVideos() {
+      document.getElementById('results').innerText = 'Loading results...';
       saveSettings();
+
       const query = document.getElementById('query').value;
-      const uploadDate = document.getElementById('uploadDate').value;
+      const blocked = document.getElementById('blockedTerms').value.split(',').map(t => t.trim()).filter(t => t);
       const duration = document.getElementById('duration').value;
-      const blockedTermsInput = document.getElementById('blocked').value;
+      const publishedAfter = getDateISOString('publishedAfter');
       const hideShorts = document.getElementById('hideShorts').checked;
-      const errorEl = document.getElementById('error');
-      const loadingEl = document.getElementById('loading');
-      const resultsEl = document.getElementById('results');
 
-      errorEl.textContent = '';
-      resultsEl.innerHTML = '';
-      loadingEl.style.display = 'block';
-      disableInputs(true);
-
-      // Prepare regex filters
-      const blockedTerms = blockedTermsInput
-        .split(',')
-        .map(t => t.trim())
-        .filter(t => t)
-        .map(t => new RegExp(t, 'i'));
-
-      let pageToken = '';
-      let results = [];
+      const url = new URL('https://www.googleapis.com/youtube/v3/search');
+      url.searchParams.set('part', 'snippet');
+      url.searchParams.set('q', query);
+      url.searchParams.set('type', 'video');
+      url.searchParams.set('maxResults', '25');
+      url.searchParams.set('videoDuration', duration);
+      if (publishedAfter) url.searchParams.set('publishedAfter', publishedAfter);
+      url.searchParams.set('key', API_KEY);
 
       try {
-        for (let i = 0; i < MAX_PAGES; i++) {
-          const url = new URL('https://www.googleapis.com/youtube/v3/search');
-          url.search = new URLSearchParams({
-            key: API_KEY,
-            q: query,
-            part: 'snippet',
-            maxResults: '25',
-            type: 'video',
-            videoDuration: duration !== 'any' ? duration : undefined,
-            publishedAfter: getPublishedAfter(uploadDate),
-            pageToken: pageToken
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`API Error ${response.status}`);
+        const data = await response.json();
+
+        const filtered = data.items.filter(item => {
+          const title = item.snippet.title.toLowerCase();
+          const description = item.snippet.description.toLowerCase();
+          const isShort = title.includes('#shorts') || description.includes('#shorts');
+
+          if (hideShorts && isShort) return false;
+          return !blocked.some(term => {
+            const regex = new RegExp(term, 'i');
+            return regex.test(title) || regex.test(description);
           });
+        });
 
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`API error: ${res.status}`);
-          const data = await res.json();
-          if (!data.items) break;
+        const output = filtered.map(item => {
+          const { title, publishedAt, channelTitle, description } = item.snippet;
+          const videoId = item.id.videoId;
+          const url = `https://www.youtube.com/watch?v=${videoId}`;
+          return `<div><b><a href="${url}" target="_blank">${title}</a></b><br>
+                  Channel: ${channelTitle}<br>
+                  Published: ${publishedAt}<br>
+                  Description: ${description}</div><hr>`;
+        }).join('');
 
-          const filtered = data.items.filter(item => {
-            const meta = `${item.snippet.title} ${item.snippet.description} ${item.snippet.tags || ''}`;
-            const matchesBlocked = blockedTerms.some(rx => rx.test(meta));
-            const isShort = /#shorts/i.test(item.snippet.title);
-            return !matchesBlocked && (!hideShorts || !isShort);
-          });
-
-          results = results.concat(filtered);
-          if (!data.nextPageToken) break;
-          pageToken = data.nextPageToken;
-        }
-
-        displayResults(results);
+        document.getElementById('results').innerHTML = output || 'No matching videos found.';
       } catch (err) {
-        errorEl.textContent = 'Error: ' + err.message;
-      } finally {
-        loadingEl.style.display = 'none';
-        disableInputs(false);
+        document.getElementById('results').innerText = `Error: ${err.message}`;
       }
     }
 
-    function getPublishedAfter(option) {
-      const now = Date.now();
-      if (option === 'today') return new Date(now - 86400000).toISOString();
-      if (option === 'thisWeek') return new Date(now - 7 * 86400000).toISOString();
-      if (option === 'thisMonth') return new Date(now - 30 * 86400000).toISOString();
-      return undefined;
-    }
-
-    function displayResults(videos) {
-      const container = document.getElementById('results');
-      if (videos.length === 0) {
-        container.innerHTML = '<p>No results found after filtering.</p>';
-        return;
-      }
-      videos.forEach(video => {
-        const title = video.snippet.title;
-        const url = `https://www.youtube.com/watch?v=${video.id.videoId}`;
-        const div = document.createElement('div');
-        div.className = 'video';
-        div.innerHTML = `<a href="${url}" target="_blank">${title}</a>`;
-        container.appendChild(div);
-      });
-    }
-
-    function disableInputs(disabled) {
-      document.getElementById('searchBtn').disabled = disabled;
-      ['query','uploadDate','duration','blocked','hideShorts'].forEach(id => {
-        document.getElementById(id).disabled = disabled;
-      });
-    }
-
-    document.getElementById('searchBtn').addEventListener('click', searchVideos);
-    window.addEventListener('load', loadSettings);
-  </script>
-</body>
+    loadSettings();
+  </script></body>
 </html>
