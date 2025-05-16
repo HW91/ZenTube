@@ -2,120 +2,134 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YouTube Video Filter</title>
+  <title>YouTube Filter App</title>
   <style>
-    body { font-family: sans-serif; padding: 1em; }
-    input, select, button { margin: 0.25em 0; width: 100%; padding: 0.5em; }
-    #results a { display: block; margin: 0.5em 0; }
-    .hidden { display: none; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 10px;
+      background: #f9f9f9;
+    }
+    .filter-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 500px;
+      margin-bottom: 20px;
+    }
+    .results {
+      margin-top: 20px;
+    }
+    .video {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #fff;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    .hidden {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      .filter-section {
+        padding: 10px;
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
-  <h2>YouTube Video Filter</h2>
-  <input id="apiKey" placeholder="API Key (replace this)" />
-  <input id="query" placeholder="Search query" />
-  <select id="dateFilter">
-    <option value="">Any time</option>
-    <option value="1">Last day</option>
-    <option value="7">Last week</option>
-    <option value="30">Last month</option>
-    <option value="90">Last 3 months</option>
-    <option value="365">Last year</option>
-  </select>
-  <label><input type="checkbox" id="hideShorts" /> Hide Shorts</label>
-  <label><input type="checkbox" id="englishOnly" /> English Only</label>
-  <label><input type="checkbox" id="usOnly" /> US Only</label>  <select id="sortOrder">
-    <option value="relevance">Relevance</option>
-    <option value="date">Upload date</option>
-    <option value="viewCount">View count</option>
-  </select>
-  <select id="sortDirection">
-    <option value="desc">Descending</option>
-    <option value="asc">Ascending</option>
-  </select><button onclick="toggleBlockBox()">Toggle Block Terms Box</button>
+  <div class="filter-section">
+    <input type="text" id="query" placeholder="Search term" />
+    <label>
+      <input type="checkbox" id="hideShorts" /> Hide Shorts
+    </label>
+    <select id="dateFilter">
+      <option value="">Any time</option>
+      <option value="day">Last day</option>
+      <option value="week">Last week</option>
+      <option value="month">Last month</option>
+      <option value="3months">Last 3 months</option>
+      <option value="year">Last year</option>
+    </select>
+    <select id="sortBy">
+      <option value="relevance">Relevance</option>
+      <option value="date">Upload date</option>
+      <option value="viewCount">View count</option>
+    </select>
+    <label>
+      <input type="checkbox" id="sortDesc" checked /> Descending
+    </label>
+    <label>
+      <input type="checkbox" id="showBlockedToggle" checked /> Show Block Terms Input
+    </label>
+    <textarea id="blockedTerms" rows="3" placeholder="Enter terms to block, comma-separated"></textarea>
+    <button id="searchBtn">Search</button>
+  </div>
+  <div class="results" id="results"></div>  <script>
+    const apiKey = "AIzaSyCOpM3LTOwzxzi2rHyDeWx5GM-D3wV7CS4";
+    const searchBtn = document.getElementById("searchBtn");
+    const resultsDiv = document.getElementById("results");
+    const blockedTermsBox = document.getElementById("blockedTerms");
+    const showBlockedToggle = document.getElementById("showBlockedToggle");
 
-  <div id="blockBox">
-    <input id="blockTerms" placeholder="Comma-separated terms to block" />
-  </div><button onclick="searchVideos()">Search</button>
+    showBlockedToggle.addEventListener("change", () => {
+      blockedTermsBox.style.display = showBlockedToggle.checked ? "block" : "none";
+    });
 
-  <div id="results"></div>  <script>
-    const blockBox = document.getElementById('blockBox');
-
-    function toggleBlockBox() {
-      blockBox.classList.toggle('hidden');
-    }
-
-    function savePreferences() {
-      localStorage.setItem('filters', JSON.stringify({
-        query: document.getElementById('query').value,
-        dateFilter: document.getElementById('dateFilter').value,
-        hideShorts: document.getElementById('hideShorts').checked,
-        englishOnly: document.getElementById('englishOnly').checked,
-        usOnly: document.getElementById('usOnly').checked,
-        sortOrder: document.getElementById('sortOrder').value,
-        sortDirection: document.getElementById('sortDirection').value,
-        blockTerms: document.getElementById('blockTerms').value
-      }));
-    }
-
-    function loadPreferences() {
-      const filters = JSON.parse(localStorage.getItem('filters')) || {};
-      document.getElementById('query').value = filters.query || '';
-      document.getElementById('dateFilter').value = filters.dateFilter || '';
-      document.getElementById('hideShorts').checked = filters.hideShorts || false;
-      document.getElementById('englishOnly').checked = filters.englishOnly || false;
-      document.getElementById('usOnly').checked = filters.usOnly || false;
-      document.getElementById('sortOrder').value = filters.sortOrder || 'relevance';
-      document.getElementById('sortDirection').value = filters.sortDirection || 'desc';
-      document.getElementById('blockTerms').value = filters.blockTerms || '';
-    }
+    searchBtn.addEventListener("click", searchVideos);
 
     async function searchVideos() {
-      savePreferences();
-      const apiKey = document.getElementById('apiKey').value;
-      const query = document.getElementById('query').value;
-      const dateFilter = document.getElementById('dateFilter').value;
-      const blockTerms = document.getElementById('blockTerms').value.toLowerCase().split(',').map(t => t.trim()).filter(Boolean);
-      const hideShorts = document.getElementById('hideShorts').checked;
-      const englishOnly = document.getElementById('englishOnly').checked;
-      const usOnly = document.getElementById('usOnly').checked;
-      const sortOrder = document.getElementById('sortOrder').value;
-      const sortDirection = document.getElementById('sortDirection').value;
+      const query = document.getElementById("query").value;
+      const hideShorts = document.getElementById("hideShorts").checked;
+      const blockedTerms = document.getElementById("blockedTerms").value.toLowerCase().split(",").map(term => term.trim()).filter(Boolean);
+      const dateFilter = document.getElementById("dateFilter").value;
+      const sortBy = document.getElementById("sortBy").value;
+      const sortDesc = document.getElementById("sortDesc").checked;
 
-      let publishedAfter = '';
-      if (dateFilter) {
-        const daysAgo = parseInt(dateFilter);
+      const publishedAfterMap = {
+        day: 1,
+        week: 7,
+        month: 30,
+        "3months": 90,
+        year: 365
+      };
+
+      let publishedAfter = "";
+      if (dateFilter && publishedAfterMap[dateFilter]) {
+        const daysAgo = publishedAfterMap[dateFilter];
         const date = new Date();
         date.setDate(date.getDate() - daysAgo);
         publishedAfter = `&publishedAfter=${date.toISOString()}`;
       }
 
-      let nextPageToken = '';
-      let results = [];
-      for (let i = 0; i < 3; i++) {
-        const url = `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&q=${encodeURIComponent(query)}&type=video&maxResults=50&order=${sortOrder}${publishedAfter}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+      const order = sortBy;
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=25&q=${encodeURIComponent(query)}${publishedAfter}&order=${order}&key=${apiKey}`;
+
+      try {
         const res = await fetch(url);
         const data = await res.json();
-        if (!data.items) break;
-        results = results.concat(data.items);
-        nextPageToken = data.nextPageToken;
-        if (!nextPageToken) break;
+
+        if (!data.items) throw new Error("No results");
+
+        const filtered = data.items.filter(item => {
+          const title = item.snippet.title.toLowerCase();
+          const isBlocked = blockedTerms.some(term => title.includes(term));
+          const isShort = item.id.videoId && item.snippet.title.toLowerCase().includes("shorts");
+          return (!isBlocked && (!hideShorts || !isShort));
+        });
+
+        resultsDiv.innerHTML = filtered.map(item => `
+          <div class="video">
+            <a href="https://www.youtube.com/watch?v=${item.id.videoId}" target="_blank">
+              ${item.snippet.title}
+            </a>
+            <div>Channel: ${item.snippet.channelTitle}</div>
+            <div>Published: ${new Date(item.snippet.publishedAt).toLocaleDateString()}</div>
+          </div>
+        `).join("");
+      } catch (err) {
+        resultsDiv.innerHTML = `<div>Error: ${err.message}</div>`;
       }
-
-      const filtered = results.filter(item => {
-        const title = item.snippet.title.toLowerCase();
-        if (blockTerms.some(term => title.includes(term))) return false;
-        if (hideShorts && item.id.videoId.startsWith('shorts')) return false;
-        if (englishOnly && item.snippet.defaultAudioLanguage !== 'en') return false;
-        if (usOnly && item.snippet.country !== 'US') return false;
-        return true;
-      });
-
-      document.getElementById('results').innerHTML = filtered
-        .map(item => `<a href="https://www.youtube.com/watch?v=${item.id.videoId}" target="_blank">${item.snippet.title}</a>`) 
-        .join('');
     }
-
-    loadPreferences();
   </script></body>
 </html>
