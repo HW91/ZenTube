@@ -8,10 +8,19 @@
   <h1>YouTube Video Filter</h1>
 
   <label>Search Term: <input type="text" id="searchTerm"></label><br>
-  <label>Blocked Terms (comma-separated): <input type="text" id="blockTerms"></label><br>
+  
+  <label>
+    <input type="checkbox" id="toggleBlockTerms" checked onchange="toggleBlockTermsBox()"> Show Blocked Terms Box
+  </label><br>
+
+  <div id="blockTermsBox">
+    <label>Blocked Terms (comma-separated): <input type="text" id="blockTerms"></label><br>
+  </div>
+
   <label>Max Results (1–50): <input type="number" id="maxResults" value="10" min="1" max="50"></label><br>
   <label>Show Shorts: <input type="checkbox" id="showShorts" checked></label><br>
   <label>Show Blocked Results: <input type="checkbox" id="showBlocked" checked></label><br>
+  
   <button onclick="fetchVideos()">Search</button>
 
   <div id="results"></div>
@@ -19,6 +28,12 @@
   <script>
     const API_KEY = 'AIzaSyCOpM3LTOwzxzi2rHyDeWx5GM-D3wV7CS4';
     const API_URL = 'https://www.googleapis.com/youtube/v3/search';
+
+    function toggleBlockTermsBox() {
+      const box = document.getElementById('blockTermsBox');
+      const checkbox = document.getElementById('toggleBlockTerms');
+      box.style.display = checkbox.checked ? 'block' : 'none';
+    }
 
     async function fetchVideos() {
       const searchTerm = document.getElementById('searchTerm').value.trim();
@@ -43,7 +58,7 @@
         const filtered = data.items.filter(item => {
           const title = item.snippet.title.toLowerCase();
           const isBlocked = blockTerms.some(term => title.includes(term));
-          const isShort = item.id.videoId && item.snippet && item.snippet.description?.includes('#shorts');
+          const isShort = item.snippet.description?.includes('#shorts');
           const shouldHide = (isBlocked && !showBlocked) || (!showShorts && isShort);
           return !shouldHide;
         });
@@ -65,6 +80,9 @@
         alert('Failed to fetch videos.');
       }
     }
+
+    // Hide or show blockTermsBox on initial load
+    window.onload = toggleBlockTermsBox;
   </script>
 </body>
 </html>
