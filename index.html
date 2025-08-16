@@ -412,8 +412,9 @@
       return div.innerHTML;
     }
 
-    // Save API key to localStorage for convenience
+    // Save API key and blocked terms to localStorage for convenience
     const apiKeyInput = document.getElementById("apiKey");
+    const blockedTermsInput = document.getElementById("blockedTerms");
     
     // Load saved API key
     const savedApiKey = localStorage.getItem("youtube-api-key");
@@ -421,9 +422,20 @@
       apiKeyInput.value = savedApiKey;
     }
     
+    // Load saved blocked terms
+    const savedBlockedTerms = localStorage.getItem("youtube-blocked-terms");
+    if (savedBlockedTerms) {
+      blockedTermsInput.value = savedBlockedTerms;
+    }
+    
     // Save API key when changed
     apiKeyInput.addEventListener("input", () => {
       localStorage.setItem("youtube-api-key", apiKeyInput.value);
+    });
+    
+    // Save blocked terms when changed
+    blockedTermsInput.addEventListener("input", () => {
+      localStorage.setItem("youtube-blocked-terms", blockedTermsInput.value);
     });
   </script>
 </body>
