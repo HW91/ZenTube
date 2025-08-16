@@ -403,6 +403,12 @@
       }
 
       try {
+        // Clean and validate search query
+        const cleanQuery = query.replace(/[^\w\s\-\.]/g, ' ').trim();
+        if (!cleanQuery) {
+          throw new Error("Search term contains only invalid characters. Please use letters, numbers, spaces, or hyphens.");
+        }
+
         // Build date filter
         let publishedAfter = "";
         if (dateFilter) {
@@ -422,14 +428,35 @@
           }
         }
 
-        const order = sortBy;
-        const pageTokenParam = pageToken ? `&pageToken=${pageToken}` : "";
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(query)}${publishedAfter}&order=${order}${pageTokenParam}&key=${apiKey}`;
+        // Build URL more carefully
+        const baseUrl = "https://www.googleapis.com/youtube/v3/search";
+        const params = new URLSearchParams({
+          part: "snippet",
+          type: "video",
+          maxResults: "50",
+          q: cleanQuery,
+          order: sortBy,
+          key: apiKey
+        });
+
+        // Add optional parameters
+        if (publishedAfter) {
+          const afterDate = publishedAfter.split('=')[1];
+          params.append('publishedAfter', afterDate);
+        }
+        
+        if (pageToken) {
+          params.append('pageToken', pageToken);
+        }
+
+        const url = `${baseUrl}?${params.toString()}`;
+        console.log("API Request URL:", url.replace(apiKey, "***"));
 
         const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
+          console.error("API Error Response:", data);
           throw new Error(data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
         }
 
