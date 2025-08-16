@@ -249,7 +249,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎥 YouTube Search v25</h1>
+    <h1>🎥 YouTube Search v26</h1>
     
     <div class="api-setup">
       <h3>⚠️ API Key Required</h3>
@@ -421,18 +421,26 @@
     });
 
     async function searchVideos(pageToken = "") {
+      showDebug(`🚀 searchVideos() called with pageToken: "${pageToken}"`, "info");
+      
       const apiKey = document.getElementById("apiKey").value.trim();
       const query = document.getElementById("query").value.trim();
       
+      showDebug(`🔑 API Key: ${apiKey ? `${apiKey.length} characters` : "EMPTY"}<br>🔍 Query: "${query}"`, "info");
+      
       if (!apiKey) {
+        showDebug("❌ No API key provided", "error");
         showError("Please enter your YouTube API key first.");
         return;
       }
       
       if (!query) {
+        showDebug("❌ No search query provided", "error");
         showError("Please enter a search term.");
         return;
       }
+
+      showDebug(`✅ Basic validation passed`, "success");
 
       // Reset pagination for new searches
       if (!pageToken) {
