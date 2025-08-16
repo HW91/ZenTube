@@ -210,6 +210,31 @@
       font-weight: 500;
     }
     
+    .debug-info {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      padding: 10px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 12px;
+      color: #495057;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .debug-info.error {
+      background: #f8d7da;
+      border-color: #f5c6cb;
+      color: #721c24;
+    }
+    
+    .debug-info.success {
+      background: #d4edda;
+      border-color: #c3e6cb;
+      color: #155724;
+    }
+    
     @media (max-width: 600px) {
       .container {
         padding: 20px;
@@ -298,7 +323,16 @@
         <textarea id="blockedTerms" rows="3" placeholder="Enter terms to block from results..."></textarea>
       </div>
       
+      <div class="checkbox-group">
+        <input type="checkbox" id="showDebugToggle" />
+        <label for="showDebugToggle">Show Debug Info</label>
+      </div>
+      
       <button id="searchBtn">🔍 Search Videos</button>
+    </div>
+    
+    <div class="debug-info" id="debugInfo" style="display: none;">
+      Debug info will appear here...
     </div>
     
     <div class="pagination" id="pagination" style="display: none;">
@@ -322,6 +356,8 @@
     const prevBtn = document.getElementById("prevBtn");
     const nextBtn = document.getElementById("nextBtn");
     const pageInfo = document.getElementById("pageInfo");
+    const debugInfo = document.getElementById("debugInfo");
+    const showDebugToggle = document.getElementById("showDebugToggle");
 
     // Pagination state
     let currentPage = 1;
@@ -329,6 +365,25 @@
     let currentQuery = "";
     let nextPageToken = "";
     let hasMorePages = false;
+
+    function showDebug(message, type = "info") {
+      if (showDebugToggle.checked) {
+        debugInfo.style.display = "block";
+        debugInfo.className = `debug-info ${type}`;
+        debugInfo.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+      }
+    }
+
+    function hideDebug() {
+      debugInfo.style.display = "none";
+    }
+
+    // Toggle debug info visibility
+    showDebugToggle.addEventListener("change", () => {
+      if (!showDebugToggle.checked) {
+        hideDebug();
+      }
+    });
 
     // Toggle blocked terms section
     showBlockedToggle.addEventListener("change", () => {
@@ -403,12 +458,6 @@
       }
 
       try {
-        // Clean and validate search query
-        const cleanQuery = query.replace(/[^\w\s\-\.]/g, ' ').trim();
-        if (!cleanQuery) {
-          throw new Error("Search term contains only invalid characters. Please use letters, numbers, spaces, or hyphens.");
-        }
-
         // Build date filter
         let publishedAfter = "";
         if (dateFilter) {
@@ -428,39 +477,23 @@
           }
         }
 
-        // Build URL more carefully
-        const baseUrl = "https://www.googleapis.com/youtube/v3/search";
-        const params = new URLSearchParams({
-          part: "snippet",
-          type: "video",
-          maxResults: "50",
-          q: cleanQuery,
-          order: sortBy,
-          key: apiKey
-        });
+        const order = sortBy;
+        const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(query)}${publishedAfter}&order=${order}${pageTokenParam}&key=${apiKey}`;
 
-        // Add optional parameters
-        if (publishedAfter) {
-          const afterDate = publishedAfter.split('=')[1];
-          params.append('publishedAfter', afterDate);
-        }
-        
-        if (pageToken) {
-          params.append('pageToken', pageToken);
-        }
-
-        const url = `${baseUrl}?${params.toString()}`;
-        console.log("API Request URL:", url.replace(apiKey, "***"));
+        showDebug(`📡 Requesting: ${url.replace(apiKey, "***API_KEY***")}<br>📄 Page: ${currentPage}, Token: ${pageToken || "none"}`, "info");
 
         const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
-          console.error("API Error Response:", data);
+          const errorMsg = `❌ API Error ${response.status}: ${data.error?.message || response.statusText}<br>💡 Check API key and quota limits`;
+          showDebug(errorMsg, "error");
           throw new Error(data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
         }
 
         if (!data.items || data.items.length === 0) {
+          showDebug("❌ No videos found in API response", "error");
           resultsDiv.innerHTML = '<div class="error">No videos found for your search term.</div>';
           paginationDiv.style.display = "none";
           return;
@@ -469,6 +502,8 @@
         // Store pagination info
         nextPageToken = data.nextPageToken || "";
         hasMorePages = !!nextPageToken;
+        
+        showDebug(`✅ Found ${data.items.length} videos from API<br>🔄 Next page available: ${hasMorePages ? "Yes" : "No"}`, "success");
 
         // Filter results
         let filtered = data.items.filter(item => {
@@ -501,6 +536,7 @@
         }
 
         if (filtered.length === 0) {
+          showDebug(`❌ All ${data.items.length} videos filtered out by your settings<br>🚫 Blocked terms: ${blockedTerms.length > 0 ? blockedTerms.join(", ") : "none"}<br>🎬 Hide shorts: ${hideShorts}`, "error");
           resultsDiv.innerHTML = '<div class="error">No videos match your filters.</div>';
           paginationDiv.style.display = "none";
           return;
@@ -508,6 +544,8 @@
 
         // Update pagination controls
         updatePaginationControls();
+        
+        showDebug(`🎯 Final results: ${filtered.length} videos after filtering<br>📑 Pagination: ${hasMorePages ? "More pages available" : "Last page"}`, "success");
 
         // Display results
         resultsDiv.innerHTML = `
@@ -530,7 +568,7 @@
         paginationDiv.style.display = "flex";
 
       } catch (error) {
-        console.error("Search error:", error);
+        showDebug(`💥 Search failed: ${error.message}<br>🔧 Check API key, network, or search terms`, "error");
         showError(`Search failed: ${error.message}`);
         paginationDiv.style.display = "none";
       } finally {
