@@ -477,18 +477,41 @@
           }
         }
 
+        // Debug individual parameters
+        showDebug(`🔍 Building request...<br>
+          📝 Query: "${query}"<br>
+          📅 Date filter: ${dateFilter || "none"}<br>
+          🔢 Sort: ${sortBy}<br>
+          📄 Page token: ${pageToken || "none"}<br>
+          📆 Published after: ${publishedAfter || "none"}`, "info");
+
         const order = sortBy;
         const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(query)}${publishedAfter}&order=${order}${pageTokenParam}&key=${apiKey}`;
+        
+        // Try simplest request first if this is a new search
+        let url;
+        if (!pageToken && !dateFilter) {
+          // Minimal request for testing
+          url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(query)}&key=${apiKey}`;
+          showDebug(`🧪 Using minimal request (no filters)`, "info");
+        } else {
+          // Full request with all parameters
+          url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(query)}${publishedAfter}&order=${order}${pageTokenParam}&key=${apiKey}`;
+          showDebug(`🔧 Using full request with filters`, "info");
+        }
 
-        showDebug(`📡 Requesting: ${url.replace(apiKey, "***API_KEY***")}<br>📄 Page: ${currentPage}, Token: ${pageToken || "none"}`, "info");
+        showDebug(`📡 Final URL: ${url.replace(apiKey, "***API_KEY***").substring(0, 200)}...`, "info");
 
         const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
-          const errorMsg = `❌ API Error ${response.status}: ${data.error?.message || response.statusText}<br>💡 Check API key and quota limits`;
-          showDebug(errorMsg, "error");
+          // Show more detailed error info
+          const errorDetails = `❌ API Error ${response.status}: ${data.error?.message || response.statusText}<br>
+            🔑 API Key: ${apiKey ? "Present" : "Missing"}<br>
+            🌐 URL Length: ${url.length}<br>
+            📋 Error Details: ${JSON.stringify(data.error || {}, null, 2)}`;
+          showDebug(errorDetails, "error");
           throw new Error(data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
         }
 
