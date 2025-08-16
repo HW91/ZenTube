@@ -198,7 +198,12 @@
     </div>
     
     <div class="filter-section">
-      <div class="form-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="showApiKeyToggle" checked />
+        <label for="showApiKeyToggle">Show API Key Input</label>
+      </div>
+      
+      <div class="form-group" id="apiKeyGroup">
         <label for="apiKey">Your YouTube API Key:</label>
         <input type="text" id="apiKey" placeholder="Enter your YouTube Data API key" />
       </div>
@@ -264,10 +269,17 @@
     const blockedTermsBox = document.getElementById("blockedTerms");
     const blockedTermsGroup = document.getElementById("blockedTermsGroup");
     const showBlockedToggle = document.getElementById("showBlockedToggle");
+    const apiKeyGroup = document.getElementById("apiKeyGroup");
+    const showApiKeyToggle = document.getElementById("showApiKeyToggle");
 
     // Toggle blocked terms section
     showBlockedToggle.addEventListener("change", () => {
       blockedTermsGroup.style.display = showBlockedToggle.checked ? "block" : "none";
+    });
+
+    // Toggle API key section
+    showApiKeyToggle.addEventListener("change", () => {
+      apiKeyGroup.style.display = showApiKeyToggle.checked ? "block" : "none";
     });
 
     // Search on Enter key
@@ -428,6 +440,19 @@
       blockedTermsInput.value = savedBlockedTerms;
     }
     
+    // Load saved toggle states
+    const savedShowApiKey = localStorage.getItem("youtube-show-api-key");
+    if (savedShowApiKey !== null) {
+      showApiKeyToggle.checked = savedShowApiKey === "true";
+      apiKeyGroup.style.display = showApiKeyToggle.checked ? "block" : "none";
+    }
+    
+    const savedShowBlocked = localStorage.getItem("youtube-show-blocked");
+    if (savedShowBlocked !== null) {
+      showBlockedToggle.checked = savedShowBlocked === "true";
+      blockedTermsGroup.style.display = showBlockedToggle.checked ? "block" : "none";
+    }
+    
     // Save API key when changed
     apiKeyInput.addEventListener("input", () => {
       localStorage.setItem("youtube-api-key", apiKeyInput.value);
@@ -436,6 +461,15 @@
     // Save blocked terms when changed
     blockedTermsInput.addEventListener("input", () => {
       localStorage.setItem("youtube-blocked-terms", blockedTermsInput.value);
+    });
+    
+    // Save toggle states when changed
+    showApiKeyToggle.addEventListener("change", () => {
+      localStorage.setItem("youtube-show-api-key", showApiKeyToggle.checked);
+    });
+    
+    showBlockedToggle.addEventListener("change", () => {
+      localStorage.setItem("youtube-show-blocked", showBlockedToggle.checked);
     });
   </script>
 </body>
