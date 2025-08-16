@@ -249,7 +249,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎥 YouTube Search v29</h1>
+    <h1>🎥 YouTube Search v30</h1>
     
     <div class="api-setup">
       <h3>⚠️ API Key Required</h3>
@@ -390,32 +390,55 @@
 
     // Test API key function
     async function testApiKey() {
+      // Immediate visual feedback
+      testApiBtn.textContent = "Testing...";
+      testApiBtn.disabled = true;
+      
+      // Always show result, regardless of debug setting
+      debugInfo.style.display = "block";
+      debugInfo.className = "debug-info info";
+      debugInfo.innerHTML = "<strong>🧪 Testing API key...</strong>";
+      
       const apiKey = document.getElementById("apiKey").value.trim();
       
       if (!apiKey) {
-        showDebug("❌ No API key to test", "error");
+        debugInfo.className = "debug-info error";
+        debugInfo.innerHTML = "<strong>❌ No API key entered</strong>";
+        testApiBtn.disabled = false;
+        testApiBtn.textContent = "🧪 Test API Key";
         return;
       }
 
-      showDebug(`🧪 Testing API key (${apiKey.length} chars)...`, "info");
-      testApiBtn.disabled = true;
-      testApiBtn.textContent = "Testing...";
-      
       try {
+        // Show API key info
+        debugInfo.innerHTML = `<strong>🔑 Testing API key (${apiKey.length} characters)...</strong>`;
+        
         // Simplest possible YouTube API request
         const testUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=test&key=${apiKey}`;
-        showDebug(`📡 Test URL: ${testUrl.replace(apiKey, "***")}`, "info");
+        
+        debugInfo.innerHTML += `<br>📡 Sending test request...`;
         
         const response = await fetch(testUrl);
         const data = await response.json();
         
         if (response.ok) {
-          showDebug(`✅ API key works! Found ${data.items?.length || 0} results`, "success");
+          debugInfo.className = "debug-info success";
+          debugInfo.innerHTML = `<strong>✅ API Key Works!</strong><br>
+            📊 Status: ${response.status}<br>
+            🎥 Found: ${data.items?.length || 0} test videos<br>
+            💡 Your API key is valid and working`;
         } else {
-          showDebug(`❌ API key failed: ${response.status} - ${data.error?.message || "Unknown error"}`, "error");
+          debugInfo.className = "debug-info error";
+          debugInfo.innerHTML = `<strong>❌ API Key Failed</strong><br>
+            📊 Status: ${response.status}<br>
+            💬 Error: ${data.error?.message || "Unknown error"}<br>
+            🔧 Check: API key, YouTube Data API enabled, quotas`;
         }
       } catch (error) {
-        showDebug(`💥 Network error: ${error.message}`, "error");
+        debugInfo.className = "debug-info error";
+        debugInfo.innerHTML = `<strong>💥 Network Error</strong><br>
+          💬 Message: ${error.message}<br>
+          🌐 Check: Internet connection, CORS issues`;
       } finally {
         testApiBtn.disabled = false;
         testApiBtn.textContent = "🧪 Test API Key";
