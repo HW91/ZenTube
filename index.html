@@ -249,7 +249,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎥 YouTube Search v30</h1>
+    <h1>🎥 YouTube Search v36</h1>
     
     <div class="api-setup">
       <h3>⚠️ API Key Required</h3>
@@ -323,17 +323,7 @@
         <textarea id="blockedTerms" rows="3" placeholder="Enter terms to block from results..."></textarea>
       </div>
       
-      <div class="checkbox-group">
-        <input type="checkbox" id="showDebugToggle" />
-        <label for="showDebugToggle">Show Debug Info</label>
-      </div>
-      
       <button id="searchBtn">🔍 Search Videos</button>
-      <button id="testApiBtn">🧪 Test API Key</button>
-    </div>
-    
-    <div class="debug-info" id="debugInfo" style="display: none;">
-      Debug info will appear here...
     </div>
     
     <div class="pagination" id="pagination" style="display: none;">
@@ -357,9 +347,6 @@
     const prevBtn = document.getElementById("prevBtn");
     const nextBtn = document.getElementById("nextBtn");
     const pageInfo = document.getElementById("pageInfo");
-    const debugInfo = document.getElementById("debugInfo");
-    const showDebugToggle = document.getElementById("showDebugToggle");
-    const testApiBtn = document.getElementById("testApiBtn");
 
     // Pagination state
     let currentPage = 1;
@@ -367,86 +354,6 @@
     let currentQuery = "";
     let nextPageToken = "";
     let hasMorePages = false;
-
-    function showDebug(message, type = "info") {
-      try {
-        if (showDebugToggle.checked) {
-          debugInfo.style.display = "block";
-          debugInfo.className = `debug-info ${type}`;
-          debugInfo.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
-        }
-      } catch (e) {
-        console.error("Debug function error:", e);
-      }
-    }
-
-    function hideDebug() {
-      try {
-        debugInfo.style.display = "none";
-      } catch (e) {
-        console.error("Hide debug error:", e);
-      }
-    }
-
-    // Test API key function
-    async function testApiKey() {
-      // Immediate visual feedback
-      testApiBtn.textContent = "Testing...";
-      testApiBtn.disabled = true;
-      
-      // Always show result, regardless of debug setting
-      debugInfo.style.display = "block";
-      debugInfo.className = "debug-info info";
-      debugInfo.innerHTML = "<strong>🧪 Testing API key...</strong>";
-      
-      const apiKey = document.getElementById("apiKey").value.trim();
-      
-      if (!apiKey) {
-        debugInfo.className = "debug-info error";
-        debugInfo.innerHTML = "<strong>❌ No API key entered</strong>";
-        testApiBtn.disabled = false;
-        testApiBtn.textContent = "🧪 Test API Key";
-        return;
-      }
-
-      try {
-        // Show API key info
-        debugInfo.innerHTML = `<strong>🔑 Testing API key (${apiKey.length} characters)...</strong>`;
-        
-        // Simplest possible YouTube API request
-        const testUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=test&key=${apiKey}`;
-        
-        debugInfo.innerHTML += `<br>📡 Sending test request...`;
-        
-        const response = await fetch(testUrl);
-        const data = await response.json();
-        
-        if (response.ok) {
-          debugInfo.className = "debug-info success";
-          debugInfo.innerHTML = `<strong>✅ API Key Works!</strong><br>
-            📊 Status: ${response.status}<br>
-            🎥 Found: ${data.items?.length || 0} test videos<br>
-            💡 Your API key is valid and working`;
-        } else {
-          debugInfo.className = "debug-info error";
-          debugInfo.innerHTML = `<strong>❌ API Key Failed</strong><br>
-            📊 Status: ${response.status}<br>
-            💬 Error: ${data.error?.message || "Unknown error"}<br>
-            🔧 Check: API key, YouTube Data API enabled, quotas`;
-        }
-      } catch (error) {
-        debugInfo.className = "debug-info error";
-        debugInfo.innerHTML = `<strong>💥 Network Error</strong><br>
-          💬 Message: ${error.message}<br>
-          🌐 Check: Internet connection, CORS issues`;
-      } finally {
-        testApiBtn.disabled = false;
-        testApiBtn.textContent = "🧪 Test API Key";
-      }
-    }
-
-    // Event listeners
-    testApiBtn.addEventListener("click", testApiKey);
 
     // Toggle debug info visibility
     showDebugToggle.addEventListener("change", () => {
@@ -491,57 +398,156 @@
     });
 
     async function searchVideos(pageToken = "") {
-      // Test if debug is working
-      showDebug(`🚀 Search started - Debug is working!`, "info");
+      const apiKey = document.getElementById("apiKey").value.trim();
+      const query = document.getElementById("query").value.trim();
       
+      if (!apiKey) {
+        showError("Please enter your YouTube API key first.");
+        return;
+      }
+      
+      if (!query) {
+        showError("Please enter a search term.");
+        return;
+      }
+
+      // Reset pagination for new searches
+      if (!pageToken) {
+        currentPage = 1;
+        pageTokens = [""];
+        currentQuery = query;
+      }
+
+      const hideShorts = document.getElementById("hideShorts").checked;
+      const blockedTerms = document.getElementById("blockedTerms").value.toLowerCase()
+        .split(",").map(term => term.trim()).filter(Boolean);
+      const dateFilter = document.getElementById("dateFilter").value;
+      const sortBy = document.getElementById("sortBy").value;
+      const sortDesc = document.getElementById("sortDesc").checked;
+
+      // Disable search button and show loading
+      searchBtn.disabled = true;
+      searchBtn.textContent = "🔍 Searching...";
+      if (!pageToken) {
+        resultsDiv.innerHTML = '<div class="loading">Searching for videos...</div>';
+      } else {
+        resultsDiv.innerHTML = '<div class="loading">Loading more videos...</div>';
+      }
+
       try {
-        const apiKey = document.getElementById("apiKey").value.trim();
-        const query = document.getElementById("query").value.trim();
-        
-        showDebug(`🔍 Query: "${query}" | 🔑 API Key: ${apiKey ? `${apiKey.length} chars` : "MISSING"}`, "info");
-        
-        if (!apiKey) {
-          showDebug("❌ No API key provided", "error");
-          showError("Please enter your YouTube API key first.");
-          return;
+        // Build date filter
+        let publishedAfter = "";
+        if (dateFilter) {
+          const publishedAfterMap = {
+            day: 1,
+            week: 7,
+            month: 30,
+            "3months": 90,
+            year: 365
+          };
+          
+          if (publishedAfterMap[dateFilter]) {
+            const daysAgo = publishedAfterMap[dateFilter];
+            const date = new Date();
+            date.setDate(date.getDate() - daysAgo);
+            publishedAfter = `&publishedAfter=${date.toISOString()}`;
+          }
         }
-        
-        if (!query) {
-          showDebug("❌ No search query provided", "error");
-          showError("Please enter a search term.");
+
+        const order = sortBy;
+        const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(query)}${publishedAfter}&order=${order}${pageTokenParam}&key=${apiKey}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        if (!data.items || data.items.length === 0) {
+          resultsDiv.innerHTML = '<div class="error">No videos found for your search term.</div>';
+          paginationDiv.style.display = "none";
           return;
         }
 
-        // Simple test request
-        const testUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}&key=${apiKey}`;
-        showDebug(`📡 Sending request: ${testUrl.replace(apiKey, "***")}`, "info");
-        
-        const response = await fetch(testUrl);
-        showDebug(`📨 Got response: ${response.status} ${response.statusText}`, response.ok ? "success" : "error");
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          showDebug(`❌ YouTube error: ${JSON.stringify(data.error || data, null, 2)}`, "error");
-          throw new Error(data.error?.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        showDebug(`✅ Success! Found ${data.items?.length || 0} videos`, "success");
-        
-        // Simple display for now
-        resultsDiv.innerHTML = `<h3>Found ${data.items?.length || 0} videos:</h3>` + 
-          (data.items || []).map(item => `
-            <div class="video">
-              <a href="https://www.youtube.com/watch?v=${item.id.videoId}" target="_blank">
-                ${item.snippet.title}
-              </a>
-            </div>
-          `).join("");
+        // Store pagination info
+        nextPageToken = data.nextPageToken || "";
+        hasMorePages = !!nextPageToken;
+
+        // Filter results
+        let filtered = data.items.filter(item => {
+          const title = item.snippet.title.toLowerCase();
+          const description = item.snippet.description.toLowerCase();
           
+          // Check blocked terms
+          const isBlocked = blockedTerms.some(term => 
+            title.includes(term) || description.includes(term)
+          );
+          
+          // Check for shorts (multiple ways to detect)
+          const isShort = hideShorts && (
+            title.includes("short") ||
+            title.includes("#short") ||
+            description.includes("#short") ||
+            item.snippet.channelTitle.toLowerCase().includes("shorts")
+          );
+          
+          return !isBlocked && !isShort;
+        });
+
+        // Sort if needed
+        if (sortBy === "date") {
+          filtered.sort((a, b) => {
+            const dateA = new Date(a.snippet.publishedAt);
+            const dateB = new Date(b.snippet.publishedAt);
+            return sortDesc ? dateB - dateA : dateA - dateB;
+          });
+        }
+
+        if (filtered.length === 0) {
+          resultsDiv.innerHTML = '<div class="error">No videos match your filters.</div>';
+          paginationDiv.style.display = "none";
+          return;
+        }
+
+        // Update pagination controls
+        updatePaginationControls();
+
+        // Display results
+        resultsDiv.innerHTML = `
+          <h3>Found ${filtered.length} videos (Page ${currentPage}):</h3>
+          ${filtered.map(item => `
+            <div class="video">
+              <div class="video-title">
+                <a href="https://www.youtube.com/watch?v=${item.id.videoId}" target="_blank">
+                  ${escapeHtml(item.snippet.title)}
+                </a>
+              </div>
+              <div class="video-meta">📺 ${escapeHtml(item.snippet.channelTitle)}</div>
+              <div class="video-meta">📅 ${new Date(item.snippet.publishedAt).toLocaleDateString()}</div>
+              <div class="video-meta">📝 ${escapeHtml(item.snippet.description.substring(0, 150))}${item.snippet.description.length > 150 ? '...' : ''}</div>
+            </div>
+          `).join("")}
+        `;
+
+        // Show pagination controls
+        paginationDiv.style.display = "flex";
+
       } catch (error) {
-        showDebug(`💥 Final error: ${error.message}`, "error");
         showError(`Search failed: ${error.message}`);
+        paginationDiv.style.display = "none";
+      } finally {
+        // Re-enable search button
+        searchBtn.disabled = false;
+        searchBtn.textContent = "🔍 Search Videos";
       }
+    }
+
+    function updatePaginationControls() {
+      pageInfo.textContent = `Page ${currentPage}`;
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = !hasMorePages;
     }
 
     function updatePaginationControls() {
