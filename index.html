@@ -232,7 +232,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎥 YouTube Search v30</h1>
+    <h1>🎥 YouTube Search v20</h1>
     
     <div class="api-setup">
       <h3>⚠️ API Key Required</h3>
@@ -324,6 +324,9 @@
       <div class="form-group" id="blockedTermsGroup" style="display: none;">
         <label for="blockedTerms">Blocked Terms (comma-separated):</label>
         <textarea id="blockedTerms" rows="3" placeholder="Enter terms to block from results..."></textarea>
+        <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+          ℹ️ Filters out videos containing these terms in title, description, or channel name. Example: "shorts, tiktok, reaction"
+        </small>
       </div>
       
       <button id="searchBtn">🔍 Search Videos</button>
@@ -393,6 +396,34 @@
     function filterViewedVideos(videos) {
       if (!hideViewedCheckbox.checked) return videos;
       return videos.filter(video => !viewedVideos.has(video.id.videoId));
+    }
+    
+    // Filter blocked terms from results
+    function filterBlockedTerms(videos) {
+      const blockedTermsText = document.getElementById("blockedTerms").value.trim();
+      if (!blockedTermsText) return videos;
+      
+      const blockedTerms = blockedTermsText
+        .split(',')
+        .map(term => term.trim().toLowerCase())
+        .filter(term => term.length > 0);
+      
+      if (blockedTerms.length === 0) return videos;
+      
+      return videos.filter(video => {
+        const title = video.snippet.title.toLowerCase();
+        const description = video.snippet.description.toLowerCase();
+        const channelTitle = video.snippet.channelTitle.toLowerCase();
+        
+        // Check if any blocked term appears in title, description, or channel name
+        const hasBlockedTerm = blockedTerms.some(blockedTerm => {
+          return title.includes(blockedTerm) || 
+                 description.includes(blockedTerm) || 
+                 channelTitle.includes(blockedTerm);
+        });
+        
+        return !hasBlockedTerm; // Return videos that DON'T contain blocked terms
+      });
     }
     async function testApiKey() {
       testApiBtn.textContent = "Testing...";
@@ -553,12 +584,13 @@
           if (!nextPageToken) break;
         }
         
-        // Filter viewed videos and get the page we want
-        const unviewedVideos = filterViewedVideos(allFetchedVideos);
-        const pageVideos = unviewedVideos.slice(startIndex, endIndex);
+        // Filter viewed videos and blocked terms, then get the page we want
+        let filteredVideos = filterViewedVideos(allFetchedVideos);
+        filteredVideos = filterBlockedTerms(filteredVideos);
+        const pageVideos = filteredVideos.slice(startIndex, endIndex);
         
         // Update pagination state
-        hasMorePages = unviewedVideos.length > endIndex || nextPageToken !== null;
+        hasMorePages = filteredVideos.length > endIndex || nextPageToken !== null;
         
         // Display results
         if (pageVideos.length === 0 && startIndex === 0) {
@@ -678,9 +710,13 @@
       localStorage.setItem("youtube-api-key", apiKeyInput.value);
     });
     
-    // Save blocked terms when changed
+    // Save blocked terms when changed AND re-filter results
     blockedTermsInput.addEventListener("input", () => {
       localStorage.setItem("youtube-blocked-terms", blockedTermsInput.value);
+      // Re-display current page with new filter
+      if (allFetchedVideos.length > 0) {
+        searchVideos(false);
+      }
     });
     
     // Save toggle states when changed
